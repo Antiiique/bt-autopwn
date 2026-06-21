@@ -21,18 +21,21 @@ Outil de test de sécurité Bluetooth tout-en-un avec interface graphique cyberp
 - Perturber des systèmes (DoS, flood, jamming)
 - Toute activité illégale
 
-### Cadre légal français applicable
+<details>
+<summary><strong>📋 Cadre légal français applicable (cliquer pour développer)</strong></summary>
 
 | Article | Infraction | Peine maximale |
 |---------|-----------|----------------|
-| **Art. 323-1 CP** | Accès frauduleux à un STAD (système informatique) sans autorisation | 2 ans · 60 000 € |
+| **Art. 323-1 CP** | Accès frauduleux à un STAD sans autorisation | 2 ans · 60 000 € |
 | **Art. 323-1 CP** (aggravé) | Accès + suppression ou modification de données | 3 ans · 100 000 € |
-| **Art. 323-2 CP** | Entrave au fonctionnement d'un système (DoS, flood BLE, jamming) | 5 ans · 150 000 € |
-| **Art. 323-3 CP** | Introduction ou altération frauduleuse de données dans un système | 5 ans · 150 000 € |
-| **Art. 323-3-1 CP** *(Loi LCEN 2004)* | Détention ou diffusion d'outils d'intrusion informatique hors autorisation | 2 ans · 30 000 € |
-| **Art. 226-15 CP** | Interception de communications privées sans consentement (audio BT, données) | 1 an · 45 000 € |
+| **Art. 323-2 CP** | Entrave au fonctionnement d'un système (DoS, flood, jamming) | 5 ans · 150 000 € |
+| **Art. 323-3 CP** | Introduction ou altération frauduleuse de données | 5 ans · 150 000 € |
+| **Art. 323-3-1 CP** *(Loi LCEN 2004)* | Détention ou diffusion d'outils d'intrusion hors autorisation | 2 ans · 30 000 € |
+| **Art. 226-15 CP** | Interception de communications privées sans consentement | 1 an · 45 000 € |
 | **Loi n°91-646 du 10/07/1991** | Interception de communications électroniques hors cadre légal | Peines correctionnelles |
-| **RGPD — Règlement (UE) 2016/679** | Collecte de données personnelles sans base légale (contacts PBAP, audio) | Jusqu'à 20 M€ ou 4 % CA mondial |
+| **RGPD — Règlement (UE) 2016/679** | Collecte de données personnelles sans base légale | Jusqu'à 20 M€ ou 4 % CA mondial |
+
+</details>
 
 > 💡 **En pratique :** utiliser cet outil sur un appareil qui ne vous appartient pas, ou sans autorisation écrite préalable, constitue une **infraction pénale** en France, même si vous n'en avez pas l'intention.
 >
