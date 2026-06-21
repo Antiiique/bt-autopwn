@@ -5,23 +5,39 @@ Outil de test de sécurité Bluetooth tout-en-un avec interface graphique cyberp
 
 ---
 
-## ⚠️ DISCLAIMER — FOR EDUCATIONAL PURPOSE ONLY
+## ⚠️ AVERTISSEMENT LÉGAL — USAGE ÉDUCATIF UNIQUEMENT
 
-> **This tool is designed strictly for learning, authorized security testing, and research.**
+> **Cet outil est conçu exclusivement pour l'apprentissage, les tests autorisés et la recherche en sécurité.**
+
+### Usages autorisés ✅
+- Tests sur des appareils **vous appartenant** ou avec **autorisation écrite explicite**
+- Missions de pentest avec contrat signé
+- Compétitions CTF, travaux pratiques académiques, labs isolés
+- Apprentissage des techniques d'attaque **pour mieux se défendre**
+
+### Usages interdits ❌
+- Attaquer des appareils sans autorisation
+- Intercepter des communications de tiers
+- Perturber des systèmes (DoS, flood, jamming)
+- Toute activité illégale
+
+### Cadre légal français applicable
+
+| Article | Infraction | Peine maximale |
+|---------|-----------|----------------|
+| **Art. 323-1 CP** | Accès frauduleux à un STAD (système informatique) sans autorisation | 2 ans · 60 000 € |
+| **Art. 323-1 CP** (aggravé) | Accès + suppression ou modification de données | 3 ans · 100 000 € |
+| **Art. 323-2 CP** | Entrave au fonctionnement d'un système (DoS, flood BLE, jamming) | 5 ans · 150 000 € |
+| **Art. 323-3 CP** | Introduction ou altération frauduleuse de données dans un système | 5 ans · 150 000 € |
+| **Art. 323-3-1 CP** *(Loi LCEN 2004)* | Détention ou diffusion d'outils d'intrusion informatique hors autorisation | 2 ans · 30 000 € |
+| **Art. 226-15 CP** | Interception de communications privées sans consentement (audio BT, données) | 1 an · 45 000 € |
+| **Loi n°91-646 du 10/07/1991** | Interception de communications électroniques hors cadre légal | Peines correctionnelles |
+| **RGPD — Règlement (UE) 2016/679** | Collecte de données personnelles sans base légale (contacts PBAP, audio) | Jusqu'à 20 M€ ou 4 % CA mondial |
+
+> 💡 **En pratique :** utiliser cet outil sur un appareil qui ne vous appartient pas, ou sans autorisation écrite préalable, constitue une **infraction pénale** en France, même si vous n'en avez pas l'intention.
 >
-> - ✅ Use only on devices **you own** or have **explicit written authorization** to test
-> - ✅ Authorized penetration testing engagements
-> - ✅ CTF competitions, academic labs, security research
-> - ✅ Learning how Bluetooth attacks work **in order to defend better**
->
-> - ❌ **DO NOT** use against devices without authorization
-> - ❌ **DO NOT** intercept third-party communications
-> - ❌ **DO NOT** cause disruption or denial of service to others
-> - ❌ **DO NOT** engage in any activity that violates local, national, or international laws
->   (CFAA, GDPR, Canadian Criminal Code s.342.1, EU Directive 2013/40/EU, or equivalent)
->
-> **We learn how to attack in order to defend better. Stay legal. Stay ethical.**
-> **The authors accept NO liability for misuse of this software.**
+> **On apprend à attaquer pour mieux se défendre. Restez dans la légalité.**
+> **Les auteurs déclinent toute responsabilité en cas de mauvais usage.**
 
 ---
 

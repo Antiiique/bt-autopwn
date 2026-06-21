@@ -3,27 +3,54 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║              BT-AutoPwn v3.1 — Bluetooth Security Testing Framework         ║
 ║                                                                              ║
-║  ⚠  FOR EDUCATIONAL PURPOSE ONLY — DISCLAIMER ⚠                            ║
+║  ⚠  AVERTISSEMENT LÉGAL — USAGE ÉDUCATIF UNIQUEMENT ⚠                      ║
 ║                                                                              ║
-║  This tool is designed strictly for:                                         ║
-║    • Authorized penetration testing on devices you own or have explicit      ║
-║      written permission to test                                              ║
-║    • Security research and vulnerability disclosure                          ║
-║    • Learning how Bluetooth attacks work in order to DEFEND against them     ║
-║    • CTF (Capture The Flag) competitions and academic labs                   ║
+║  Cet outil est conçu exclusivement pour :                                    ║
+║    • Les tests d'intrusion autorisés sur des appareils vous appartenant      ║
+║      ou pour lesquels vous disposez d'une autorisation écrite explicite      ║
+║    • La recherche en sécurité et la divulgation responsable de failles       ║
+║    • L'apprentissage des attaques Bluetooth afin de MIEUX SE DÉFENDRE        ║
+║    • Les compétitions CTF, travaux pratiques académiques et labs isolés      ║
 ║                                                                              ║
-║  DO NOT use this tool to:                                                    ║
-║    • Attack devices without explicit authorization                           ║
-║    • Intercept communications of third parties                               ║
-║    • Cause disruption or denial of service to others                         ║
-║    • Engage in any activity that violates local, national, or international  ║
-║      laws (CFAA, GDPR, Canadian Criminal Code s.342.1, EU Directive          ║
-║      2013/40/EU, or equivalent)                                              ║
+║  CADRE LÉGAL FRANÇAIS — Articles du Code pénal applicables :                 ║
 ║                                                                              ║
-║  We learn how to attack in order to defend better.                           ║
-║  Stay legal. Stay ethical. Get written authorization first.                  ║
+║  Art. 323-1 CP — Accès frauduleux à un STAD                                 ║
+║    Accéder ou se maintenir dans un système de traitement automatisé de       ║
+║    données (STAD) sans autorisation : 2 ans d'emprisonnement et              ║
+║    60 000 € d'amende. Si suppression ou modification de données : 3 ans     ║
+║    et 100 000 €.                                                             ║
 ║                                                                              ║
-║  The authors accept NO liability for misuse of this software.                ║
+║  Art. 323-2 CP — Entrave au fonctionnement d'un STAD                        ║
+║    Toute action perturbant ou bloquant le fonctionnement d'un système        ║
+║    (attaques DoS, flood BLE, jamming) : 5 ans et 150 000 € d'amende.        ║
+║                                                                              ║
+║  Art. 323-3 CP — Altération ou introduction frauduleuse de données          ║
+║    Introduire, modifier ou supprimer des données dans un STAD sans droit :   ║
+║    5 ans d'emprisonnement et 150 000 € d'amende.                            ║
+║                                                                              ║
+║  Art. 323-3-1 CP (Loi LCEN 2004) — Détention d'outils d'intrusion          ║
+║    Détenir, diffuser ou utiliser un programme conçu pour porter atteinte     ║
+║    à un STAD : 2 ans et 30 000 € d'amende. Cet article s'applique           ║
+║    directement aux outils de type pentest utilisés hors autorisation.        ║
+║                                                                              ║
+║  Art. 226-15 CP — Secret des correspondances                                 ║
+║    Intercepter des communications privées (audio, données BT) sans           ║
+║    consentement des parties : 1 an d'emprisonnement et 45 000 € d'amende.   ║
+║                                                                              ║
+║  Loi n°91-646 du 10 juillet 1991 — Interceptions téléphoniques              ║
+║    Toute interception de communications électroniques hors cadre légal       ║
+║    (judiciaire ou autorisation expresse) est strictement interdite.          ║
+║                                                                              ║
+║  RGPD — Règlement (UE) 2016/679                                              ║
+║    Collecter des données personnelles (contacts PBAP, audio) sans base       ║
+║    légale constitue une infraction passible de sanctions CNIL pouvant        ║
+║    atteindre 20 millions € ou 4 % du CA mondial.                            ║
+║                                                                              ║
+║  EN RÉSUMÉ : utiliser cet outil sur un appareil que vous ne possédez pas    ║
+║  ou sans autorisation écrite préalable est une infraction pénale en France.  ║
+║                                                                              ║
+║  On apprend à attaquer pour mieux se défendre. Restez dans la légalité.     ║
+║  Les auteurs déclinent toute responsabilité en cas de mauvais usage.         ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 BT-AutoPwn — Architecture overview
