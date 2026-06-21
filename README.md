@@ -3,7 +3,27 @@
 
 Outil de test de sécurité Bluetooth tout-en-un avec interface graphique cyberpunk, automatisation complète et explications en français.
 
-> **Usage personnel uniquement — appareils vous appartenant.**
+---
+
+## ⚠️ DISCLAIMER — FOR EDUCATIONAL PURPOSE ONLY
+
+> **This tool is designed strictly for learning, authorized security testing, and research.**
+>
+> - ✅ Use only on devices **you own** or have **explicit written authorization** to test
+> - ✅ Authorized penetration testing engagements
+> - ✅ CTF competitions, academic labs, security research
+> - ✅ Learning how Bluetooth attacks work **in order to defend better**
+>
+> - ❌ **DO NOT** use against devices without authorization
+> - ❌ **DO NOT** intercept third-party communications
+> - ❌ **DO NOT** cause disruption or denial of service to others
+> - ❌ **DO NOT** engage in any activity that violates local, national, or international laws
+>   (CFAA, GDPR, Canadian Criminal Code s.342.1, EU Directive 2013/40/EU, or equivalent)
+>
+> **We learn how to attack in order to defend better. Stay legal. Stay ethical.**
+> **The authors accept NO liability for misuse of this software.**
+
+---
 
 ---
 
